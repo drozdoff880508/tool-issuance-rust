@@ -27,6 +27,7 @@ pub struct App {
     login_username: String,
     login_password: String,
     login_error: String,
+    remember_me: bool,
 
     // Employee form
     employee_name: String,
@@ -38,8 +39,12 @@ pub struct App {
     tool_name: String,
     tool_inventory: String,
     tool_category: String,
-    tool_quantity: i32,
+    tool_quantity_str: String,
     editing_tool_id: Option<String>,
+
+    // Write off
+    write_off_tool_id: Option<String>,
+    write_off_quantity_str: String,
 
     // Terminal
     scan_input: String,
@@ -53,14 +58,17 @@ pub struct App {
 impl App {
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         let db = Database::load();
+        let (saved_username, saved_password) = Database::load_config();
+        let remember_me = !saved_username.is_empty();
 
         Self {
             db,
             current_user: None,
             screen: Screen::Login,
-            login_username: String::new(),
-            login_password: String::new(),
+            login_username: saved_username,
+            login_password: saved_password,
             login_error: String::new(),
+            remember_me,
             employee_name: String::new(),
             employee_position: String::new(),
             employee_department: String::new(),
@@ -68,8 +76,10 @@ impl App {
             tool_name: String::new(),
             tool_inventory: String::new(),
             tool_category: String::new(),
-            tool_quantity: 1,
+            tool_quantity_str: "1".to_string(),
             editing_tool_id: None,
+            write_off_tool_id: None,
+            write_off_quantity_str: "1".to_string(),
             scan_input: String::new(),
             scanned_employee: None,
             scanned_tool: None,
@@ -94,32 +104,45 @@ impl App {
     fn show_login(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.vertical_centered(|ui| {
-                ui.add_space(100.0);
-                ui.heading(RichText::new("Система выдачи инструментов").font(FontId::proportional(28.0)));
-                ui.add_space(40.0);
+                ui.add_space(80.0);
+                ui.heading(RichText::new("Система выдачи инструментов").font(FontId::proportional(36.0)));
+                ui.add_space(50.0);
 
                 egui::Frame::none()
                     .fill(Color32::from_rgb(240, 240, 240))
-                    .inner_margin(20.0)
+                    .inner_margin(30.0)
                     .corner_radius(10.0)
                     .show(ui, |ui| {
-                        ui.set_min_width(300.0);
+                        ui.set_min_width(400.0);
 
-                        ui.label("Логин:");
-                        ui.add(egui::TextEdit::singleline(&mut self.login_username).desired_width(250.0));
+                        ui.label(RichText::new("Логин:").font(FontId::proportional(18.0)));
+                        ui.add(egui::TextEdit::singleline(&mut self.login_username)
+                            .desired_width(300.0)
+                            .font(FontId::proportional(18.0)));
+
+                        ui.add_space(15.0);
+                        ui.label(RichText::new("Пароль:").font(FontId::proportional(18.0)));
+                        ui.add(egui::TextEdit::singleline(&mut self.login_password)
+                            .password(true)
+                            .desired_width(300.0)
+                            .font(FontId::proportional(18.0)));
 
                         ui.add_space(10.0);
-                        ui.label("Пароль:");
-                        ui.add(egui::TextEdit::singleline(&mut self.login_password).password(true).desired_width(250.0));
+                        ui.checkbox(&mut self.remember_me, "Запомнить меня");
 
                         if !self.login_error.is_empty() {
                             ui.add_space(10.0);
-                            ui.colored_label(Color32::RED, &self.login_error);
+                            ui.colored_label(Color32::RED, RichText::new(&self.login_error).font(FontId::proportional(16.0)));
                         }
 
-                        ui.add_space(20.0);
-                        if ui.button(RichText::new("Войти").font(FontId::proportional(16.0))).clicked() {
+                        ui.add_space(25.0);
+                        if ui.add_sized(egui::vec2(150.0, 45.0), egui::Button::new(RichText::new("Войти").font(FontId::proportional(20.0)))).clicked() {
                             if let Some(user) = self.db.authenticate(&self.login_username, &self.login_password) {
+                                if self.remember_me {
+                                    Database::save_config(&self.login_username, &self.login_password);
+                                } else {
+                                    Database::save_config("", "");
+                                }
                                 self.current_user = Some(user.clone());
                                 self.login_error.clear();
 
@@ -140,28 +163,29 @@ impl App {
     fn show_admin(&mut self, ctx: &egui::Context, tab: AdminTab) {
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Панель администратора");
+                ui.heading(RichText::new("Панель администратора").font(FontId::proportional(22.0)));
                 ui.add_space(20.0);
 
-                if ui.selectable_label(tab == AdminTab::Overview, "Обзор").clicked() {
+                if ui.selectable_label(tab == AdminTab::Overview, RichText::new("Обзор").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Overview);
                 }
-                if ui.selectable_label(tab == AdminTab::Employees, "Сотрудники").clicked() {
+                if ui.selectable_label(tab == AdminTab::Employees, RichText::new("Сотрудники").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Employees);
                 }
-                if ui.selectable_label(tab == AdminTab::Tools, "Инструменты").clicked() {
+                if ui.selectable_label(tab == AdminTab::Tools, RichText::new("Инструменты").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Tools);
                 }
-                if ui.selectable_label(tab == AdminTab::Issuances, "Выдачи").clicked() {
+                if ui.selectable_label(tab == AdminTab::Issuances, RichText::new("Выдачи").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Issuances);
                 }
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Выход").clicked() {
+                    if ui.button(RichText::new("Выход").font(FontId::proportional(18.0))).clicked() {
                         self.current_user = None;
                         self.screen = Screen::Login;
-                        self.login_username.clear();
-                        self.login_password.clear();
+                        let (saved_user, saved_pass) = Database::load_config();
+                        self.login_username = saved_user;
+                        self.login_password = saved_pass;
                     }
                 });
             });
@@ -178,93 +202,92 @@ impl App {
     }
 
     fn show_overview(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Обзор");
+        ui.heading(RichText::new("Обзор").font(FontId::proportional(24.0)));
         ui.add_space(20.0);
 
         let stats = self.db.get_stats();
 
         egui::Grid::new("stats_grid").num_columns(3).spacing([20.0, 10.0]).show(ui, |ui| {
             ui.group(|ui| {
-                ui.set_min_size(Vec2::new(200.0, 100.0));
+                ui.set_min_size(Vec2::new(220.0, 120.0));
                 ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new("Сотрудников").font(FontId::proportional(14.0)));
+                    ui.add_space(15.0);
+                    ui.label(RichText::new("Сотрудников").font(FontId::proportional(18.0)));
                     ui.label(RichText::new(stats.get("total_employees").unwrap_or(&0).to_string())
-                        .font(FontId::proportional(32.0)).color(Color32::from_rgb(52, 152, 219)));
+                        .font(FontId::proportional(40.0)).color(Color32::from_rgb(52, 152, 219)));
                 });
             });
 
             ui.group(|ui| {
-                ui.set_min_size(Vec2::new(200.0, 100.0));
+                ui.set_min_size(Vec2::new(220.0, 120.0));
                 ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new("Видов инструментов").font(FontId::proportional(14.0)));
+                    ui.add_space(15.0);
+                    ui.label(RichText::new("Видов инструментов").font(FontId::proportional(18.0)));
                     ui.label(RichText::new(stats.get("total_tools").unwrap_or(&0).to_string())
-                        .font(FontId::proportional(32.0)).color(Color32::from_rgb(46, 204, 113)));
+                        .font(FontId::proportional(40.0)).color(Color32::from_rgb(46, 204, 113)));
                 });
             });
 
             ui.group(|ui| {
-                ui.set_min_size(Vec2::new(200.0, 100.0));
+                ui.set_min_size(Vec2::new(220.0, 120.0));
                 ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new("Всего единиц").font(FontId::proportional(14.0)));
+                    ui.add_space(15.0);
+                    ui.label(RichText::new("Всего единиц").font(FontId::proportional(18.0)));
                     ui.label(RichText::new(stats.get("total_tool_quantity").unwrap_or(&0).to_string())
-                        .font(FontId::proportional(32.0)).color(Color32::from_rgb(155, 89, 182)));
+                        .font(FontId::proportional(40.0)).color(Color32::from_rgb(155, 89, 182)));
                 });
             });
 
             ui.end_row();
 
             ui.group(|ui| {
-                ui.set_min_size(Vec2::new(200.0, 100.0));
+                ui.set_min_size(Vec2::new(220.0, 120.0));
                 ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new("Выдано единиц").font(FontId::proportional(14.0)));
+                    ui.add_space(15.0);
+                    ui.label(RichText::new("Выдано единиц").font(FontId::proportional(18.0)));
                     ui.label(RichText::new(stats.get("issued_quantity").unwrap_or(&0).to_string())
-                        .font(FontId::proportional(32.0)).color(Color32::from_rgb(231, 76, 60)));
+                        .font(FontId::proportional(40.0)).color(Color32::from_rgb(231, 76, 60)));
                 });
             });
 
             ui.group(|ui| {
-                ui.set_min_size(Vec2::new(200.0, 100.0));
+                ui.set_min_size(Vec2::new(220.0, 120.0));
                 ui.vertical_centered(|ui| {
-                    ui.add_space(10.0);
-                    ui.label(RichText::new("Активных выдач").font(FontId::proportional(14.0)));
+                    ui.add_space(15.0);
+                    ui.label(RichText::new("Активных выдач").font(FontId::proportional(18.0)));
                     ui.label(RichText::new(stats.get("active_issuances").unwrap_or(&0).to_string())
-                        .font(FontId::proportional(32.0)).color(Color32::from_rgb(230, 126, 34)));
+                        .font(FontId::proportional(40.0)).color(Color32::from_rgb(230, 126, 34)));
                 });
             });
         });
 
         ui.add_space(30.0);
-        ui.heading("Последние выдачи");
+        ui.heading(RichText::new("Последние выдачи").font(FontId::proportional(22.0)));
         ui.add_space(10.0);
 
         egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-
             let active: Vec<_> = self.db.issuances.iter()
                 .filter(|i| i.returned_at.is_none())
                 .collect();
 
             if active.is_empty() {
-                ui.label("Нет активных выдач");
+                ui.label(RichText::new("Нет активных выдач").font(FontId::proportional(18.0)));
             } else {
-                egui::Grid::new("recent_issuances").show(ui, |ui| {
-                    ui.label(RichText::new("Инструмент").strong());
-                    ui.label(RichText::new("Сотрудник").strong());
-                    ui.label(RichText::new("Кол-во").strong());
-                    ui.label(RichText::new("Дата выдачи").strong());
+                egui::Grid::new("recent_issuances").spacing([20.0, 10.0]).show(ui, |ui| {
+                    ui.label(RichText::new("Инструмент").font(FontId::proportional(18.0)).strong());
+                    ui.label(RichText::new("Сотрудник").font(FontId::proportional(18.0)).strong());
+                    ui.label(RichText::new("Кол-во").font(FontId::proportional(18.0)).strong());
+                    ui.label(RichText::new("Дата выдачи").font(FontId::proportional(18.0)).strong());
                     ui.end_row();
 
                     for issuance in active.iter().take(20) {
                         let tool = self.db.tools.iter().find(|t| t.id == issuance.tool_id);
                         let employee = self.db.employees.iter().find(|e| e.id == issuance.employee_id);
 
-                        ui.label(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно"));
-                        ui.label(employee.map(|e| e.name.as_str()).unwrap_or("Неизвестно"));
-                        ui.label(issuance.quantity.to_string());
-                        ui.label(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string());
+                        ui.label(RichText::new(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                        ui.label(RichText::new(employee.map(|e| e.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                        ui.label(RichText::new(issuance.quantity.to_string()).font(FontId::proportional(18.0)));
+                        ui.label(RichText::new(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string()).font(FontId::proportional(18.0)));
                         ui.end_row();
                     }
                 });
@@ -274,9 +297,9 @@ impl App {
 
     fn show_employees(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading("Сотрудники");
+            ui.heading(RichText::new("Сотрудники").font(FontId::proportional(24.0)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("+ Добавить").clicked() {
+                if ui.button(RichText::new("+ Добавить").font(FontId::proportional(18.0))).clicked() {
                     self.employee_name.clear();
                     self.employee_position.clear();
                     self.employee_department.clear();
@@ -288,26 +311,26 @@ impl App {
         ui.add_space(10.0);
 
         // Add/Edit form
-        egui::CollapsingHeader::new(if self.editing_employee_id.is_some() { "Редактировать сотрудника" } else { "Добавить сотрудника" })
+        egui::CollapsingHeader::new(RichText::new(if self.editing_employee_id.is_some() { "Редактировать сотрудника" } else { "Добавить сотрудника" }).font(FontId::proportional(20.0)))
             .default_open(self.editing_employee_id.is_some())
             .show(ui, |ui| {
-                egui::Grid::new("employee_form").num_columns(2).show(ui, |ui| {
-                    ui.label("ФИО:");
-                    ui.add(egui::TextEdit::singleline(&mut self.employee_name).desired_width(200.0));
+                egui::Grid::new("employee_form").num_columns(2).spacing([20.0, 10.0]).show(ui, |ui| {
+                    ui.label(RichText::new("ФИО:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.employee_name).desired_width(300.0).font(FontId::proportional(18.0)));
                     ui.end_row();
 
-                    ui.label("Должность:");
-                    ui.add(egui::TextEdit::singleline(&mut self.employee_position).desired_width(200.0));
+                    ui.label(RichText::new("Должность:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.employee_position).desired_width(300.0).font(FontId::proportional(18.0)));
                     ui.end_row();
 
-                    ui.label("Отдел:");
-                    ui.add(egui::TextEdit::singleline(&mut self.employee_department).desired_width(200.0));
+                    ui.label(RichText::new("Отдел:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.employee_department).desired_width(300.0).font(FontId::proportional(18.0)));
                     ui.end_row();
                 });
 
-                ui.add_space(10.0);
+                ui.add_space(15.0);
                 ui.horizontal(|ui| {
-                    if ui.button(if self.editing_employee_id.is_some() { "Сохранить" } else { "Добавить" }).clicked() {
+                    if ui.button(RichText::new(if self.editing_employee_id.is_some() { "Сохранить" } else { "Добавить" }).font(FontId::proportional(18.0))).clicked() {
                         if !self.employee_name.is_empty() {
                             let id = self.editing_employee_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
                             let qr_code = format!("EMP_{}", &id[..8]);
@@ -333,7 +356,7 @@ impl App {
                         }
                     }
 
-                    if self.editing_employee_id.is_some() && ui.button("Отмена").clicked() {
+                    if self.editing_employee_id.is_some() && ui.button(RichText::new("Отмена").font(FontId::proportional(18.0))).clicked() {
                         self.employee_name.clear();
                         self.employee_position.clear();
                         self.employee_department.clear();
@@ -346,29 +369,29 @@ impl App {
 
         // Employees table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-            egui::Grid::new("employees_table").show(ui, |ui| {
-                ui.label(RichText::new("ФИО").strong());
-                ui.label(RichText::new("Должность").strong());
-                ui.label(RichText::new("Отдел").strong());
-                ui.label(RichText::new("QR код").strong());
-                ui.label(RichText::new("Действия").strong());
+            egui::Grid::new("employees_table").spacing([20.0, 10.0]).show(ui, |ui| {
+                ui.label(RichText::new("ФИО").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Должность").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Отдел").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("QR код").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
                 for employee in self.db.employees.clone() {
-                    ui.label(&employee.name);
-                    ui.label(&employee.position);
-                    ui.label(&employee.department);
-                    ui.label(&employee.qr_code);
+                    ui.label(RichText::new(&employee.name).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&employee.position).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&employee.department).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&employee.qr_code).font(FontId::proportional(18.0)));
 
                     ui.horizontal(|ui| {
-                        if ui.button("✏️").clicked() {
+                        if ui.button(RichText::new("✏️").font(FontId::proportional(18.0))).clicked() {
                             self.employee_name = employee.name.clone();
                             self.employee_position = employee.position.clone();
                             self.employee_department = employee.department.clone();
                             self.editing_employee_id = Some(employee.id.clone());
                         }
 
-                        if ui.button("🗑️").clicked() {
+                        if ui.button(RichText::new("🗑️").font(FontId::proportional(18.0))).clicked() {
                             self.db.delete_employee(&employee.id);
                         }
                     });
@@ -381,13 +404,13 @@ impl App {
 
     fn show_tools(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.heading("Инструменты");
+            ui.heading(RichText::new("Инструменты").font(FontId::proportional(24.0)));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("+ Добавить").clicked() {
+                if ui.button(RichText::new("+ Добавить").font(FontId::proportional(18.0))).clicked() {
                     self.tool_name.clear();
                     self.tool_inventory.clear();
                     self.tool_category.clear();
-                    self.tool_quantity = 1;
+                    self.tool_quantity_str = "1".to_string();
                     self.editing_tool_id = None;
                 }
             });
@@ -396,19 +419,19 @@ impl App {
         ui.add_space(10.0);
 
         // Add/Edit form
-        egui::CollapsingHeader::new(if self.editing_tool_id.is_some() { "Редактировать инструмент" } else { "Добавить инструмент" })
+        egui::CollapsingHeader::new(RichText::new(if self.editing_tool_id.is_some() { "Редактировать инструмент" } else { "Добавить инструмент" }).font(FontId::proportional(20.0)))
             .default_open(self.editing_tool_id.is_some())
             .show(ui, |ui| {
-                egui::Grid::new("tool_form").num_columns(2).show(ui, |ui| {
-                    ui.label("Название:");
-                    ui.add(egui::TextEdit::singleline(&mut self.tool_name).desired_width(200.0));
+                egui::Grid::new("tool_form").num_columns(2).spacing([20.0, 10.0]).show(ui, |ui| {
+                    ui.label(RichText::new("Название:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.tool_name).desired_width(300.0).font(FontId::proportional(18.0)));
                     ui.end_row();
 
-                    ui.label("Инв. номер:");
-                    ui.add(egui::TextEdit::singleline(&mut self.tool_inventory).desired_width(200.0));
+                    ui.label(RichText::new("Инв. номер:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.tool_inventory).desired_width(300.0).font(FontId::proportional(18.0)));
                     ui.end_row();
 
-                    ui.label("Категория:");
+                    ui.label(RichText::new("Категория:").font(FontId::proportional(18.0)));
                     let cat_name = self.db.get_category_name(&self.tool_category);
                     egui::ComboBox::from_label("")
                         .selected_text(if self.tool_category.is_empty() { "Выберите категорию" } else { &cat_name })
@@ -419,15 +442,16 @@ impl App {
                         });
                     ui.end_row();
 
-                    ui.label("Количество:");
-                    ui.add(egui::Slider::new(&mut self.tool_quantity, 1..=1000));
+                    ui.label(RichText::new("Количество:").font(FontId::proportional(18.0)));
+                    ui.add(egui::TextEdit::singleline(&mut self.tool_quantity_str).desired_width(100.0).font(FontId::proportional(18.0)));
                     ui.end_row();
                 });
 
-                ui.add_space(10.0);
+                ui.add_space(15.0);
                 ui.horizontal(|ui| {
-                    if ui.button(if self.editing_tool_id.is_some() { "Сохранить" } else { "Добавить" }).clicked() {
+                    if ui.button(RichText::new(if self.editing_tool_id.is_some() { "Сохранить" } else { "Добавить" }).font(FontId::proportional(18.0))).clicked() {
                         if !self.tool_name.is_empty() {
+                            let quantity: i32 = self.tool_quantity_str.parse().unwrap_or(1).max(1);
                             let id = self.editing_tool_id.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
                             let qr_code = format!("TOOL_{}", &id[..8]);
 
@@ -436,7 +460,7 @@ impl App {
                                 name: self.tool_name.clone(),
                                 inventory_number: self.tool_inventory.clone(),
                                 category_id: self.tool_category.clone(),
-                                total_quantity: self.tool_quantity,
+                                total_quantity: quantity,
                                 qr_code,
                             };
 
@@ -449,61 +473,110 @@ impl App {
                             self.tool_name.clear();
                             self.tool_inventory.clear();
                             self.tool_category.clear();
-                            self.tool_quantity = 1;
+                            self.tool_quantity_str = "1".to_string();
                             self.editing_tool_id = None;
                         }
                     }
 
-                    if self.editing_tool_id.is_some() && ui.button("Отмена").clicked() {
+                    if self.editing_tool_id.is_some() && ui.button(RichText::new("Отмена").font(FontId::proportional(18.0))).clicked() {
                         self.tool_name.clear();
                         self.tool_inventory.clear();
                         self.tool_category.clear();
-                        self.tool_quantity = 1;
+                        self.tool_quantity_str = "1".to_string();
                         self.editing_tool_id = None;
                     }
                 });
             });
 
+        // Write off dialog
+        if let Some(tool_id) = &self.write_off_tool_id.clone() {
+            let tool = self.db.tools.iter().find(|t| t.id == *tool_id).cloned();
+            if let Some(tool) = tool {
+                egui::Window::new(RichText::new("Списать инструмент").font(FontId::proportional(20.0)))
+                    .collapsible(false)
+                    .resizable(false)
+                    .show(ui.ctx(), |ui| {
+                        ui.label(RichText::new(format!("Инструмент: {}", tool.name)).font(FontId::proportional(18.0)));
+                        let issued = self.db.get_issued_quantity(&tool.id);
+                        let available = tool.total_quantity - issued;
+                        ui.label(RichText::new(format!("Доступно для списания: {}", available)).font(FontId::proportional(18.0)));
+                        
+                        ui.add_space(10.0);
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Количество:").font(FontId::proportional(18.0)));
+                            ui.add(egui::TextEdit::singleline(&mut self.write_off_quantity_str).desired_width(80.0).font(FontId::proportional(18.0)));
+                        });
+                        
+                        ui.add_space(15.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(RichText::new("Списать").font(FontId::proportional(18.0))).clicked() {
+                                let qty: i32 = self.write_off_quantity_str.parse().unwrap_or(0);
+                                if qty > 0 {
+                                    match self.db.write_off_tool(tool_id, qty) {
+                                        Ok(()) => {
+                                            self.write_off_tool_id = None;
+                                            self.write_off_quantity_str = "1".to_string();
+                                        }
+                                        Err(e) => {
+                                            self.write_off_quantity_str = e;
+                                        }
+                                    }
+                                }
+                            }
+                            if ui.button(RichText::new("Отмена").font(FontId::proportional(18.0))).clicked() {
+                                self.write_off_tool_id = None;
+                                self.write_off_quantity_str = "1".to_string();
+                            }
+                        });
+                    });
+            }
+        }
+
         ui.add_space(20.0);
 
         // Tools table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
-            egui::Grid::new("tools_table").show(ui, |ui| {
-                ui.label(RichText::new("Название").strong());
-                ui.label(RichText::new("Инв. номер").strong());
-                ui.label(RichText::new("Категория").strong());
-                ui.label(RichText::new("Всего").strong());
-                ui.label(RichText::new("Выдано").strong());
-                ui.label(RichText::new("Доступно").strong());
-                ui.label(RichText::new("QR").strong());
-                ui.label(RichText::new("Действия").strong());
+            egui::Grid::new("tools_table").spacing([15.0, 10.0]).show(ui, |ui| {
+                ui.label(RichText::new("Название").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Инв. номер").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Категория").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Всего").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Выдано").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Доступно").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("QR").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
                 for tool in self.db.tools.clone() {
-                    ui.label(&tool.name);
-                    ui.label(&tool.inventory_number);
-                    ui.label(self.db.get_category_name(&tool.category_id));
+                    ui.label(RichText::new(&tool.name).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&tool.inventory_number).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(self.db.get_category_name(&tool.category_id)).font(FontId::proportional(18.0)));
 
                     let issued = self.db.get_issued_quantity(&tool.id);
                     let available = tool.total_quantity - issued;
 
-                    ui.label(tool.total_quantity.to_string());
-                    ui.label(RichText::new(issued.to_string()).color(Color32::from_rgb(231, 76, 60)));
-                    ui.label(RichText::new(available.to_string()).color(Color32::from_rgb(46, 204, 113)));
+                    ui.label(RichText::new(tool.total_quantity.to_string()).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(issued.to_string()).font(FontId::proportional(18.0)).color(Color32::from_rgb(231, 76, 60)));
+                    ui.label(RichText::new(available.to_string()).font(FontId::proportional(18.0)).color(Color32::from_rgb(46, 204, 113)));
 
-                    ui.label(&tool.qr_code);
+                    ui.label(RichText::new(&tool.qr_code).font(FontId::proportional(16.0)));
 
                     ui.horizontal(|ui| {
-                        if ui.button("✏️").clicked() {
+                        if ui.button(RichText::new("✏️").font(FontId::proportional(16.0))).clicked() {
                             self.tool_name = tool.name.clone();
                             self.tool_inventory = tool.inventory_number.clone();
                             self.tool_category = tool.category_id.clone();
-                            self.tool_quantity = tool.total_quantity;
+                            self.tool_quantity_str = tool.total_quantity.to_string();
                             self.editing_tool_id = Some(tool.id.clone());
                         }
 
-                        if ui.button("🗑️").clicked() {
+                        if ui.button(RichText::new("🗑️").font(FontId::proportional(16.0))).clicked() {
                             self.db.delete_tool(&tool.id);
+                        }
+                        
+                        if ui.button(RichText::new("📉 Списать").font(FontId::proportional(16.0))).clicked() {
+                            self.write_off_tool_id = Some(tool.id.clone());
+                            self.write_off_quantity_str = "1".to_string();
                         }
                     });
 
@@ -514,7 +587,7 @@ impl App {
     }
 
     fn show_issuances(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Выдачи");
+        ui.heading(RichText::new("Выдачи").font(FontId::proportional(24.0)));
 
         ui.add_space(10.0);
 
@@ -522,18 +595,18 @@ impl App {
             .filter(|i| i.returned_at.is_none())
             .collect();
 
-        ui.label(format!("Активных выдач: {}", active.len()));
+        ui.label(RichText::new(format!("Активных выдач: {}", active.len())).font(FontId::proportional(18.0)));
 
         ui.add_space(10.0);
 
         egui::ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
-            egui::Grid::new("issuances_table").show(ui, |ui| {
-                ui.label(RichText::new("Инструмент").strong());
-                ui.label(RichText::new("Сотрудник").strong());
-                ui.label(RichText::new("Кол-во").strong());
-                ui.label(RichText::new("Выдано").strong());
-                ui.label(RichText::new("Статус").strong());
-                ui.label(RichText::new("Действие").strong());
+            egui::Grid::new("issuances_table").spacing([20.0, 10.0]).show(ui, |ui| {
+                ui.label(RichText::new("Инструмент").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Сотрудник").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Кол-во").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Выдано").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Статус").font(FontId::proportional(18.0)).strong());
+                ui.label(RichText::new("Действие").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
                 let issuances: Vec<_> = self.db.issuances.clone();
@@ -541,21 +614,21 @@ impl App {
                     let tool = self.db.tools.iter().find(|t| t.id == issuance.tool_id);
                     let employee = self.db.employees.iter().find(|e| e.id == issuance.employee_id);
 
-                    ui.label(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно"));
-                    ui.label(employee.map(|e| e.name.as_str()).unwrap_or("Неизвестно"));
-                    ui.label(issuance.quantity.to_string());
-                    ui.label(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string());
+                    ui.label(RichText::new(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(employee.map(|e| e.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(issuance.quantity.to_string()).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string()).font(FontId::proportional(18.0)));
 
                     if issuance.returned_at.is_none() {
-                        ui.label(RichText::new("Выдано").color(Color32::from_rgb(231, 76, 60)));
+                        ui.label(RichText::new("Выдано").font(FontId::proportional(18.0)).color(Color32::from_rgb(231, 76, 60)));
 
                         let issuance_id = issuance.id.clone();
-                        if ui.button("Вернуть").clicked() {
+                        if ui.button(RichText::new("Вернуть").font(FontId::proportional(18.0))).clicked() {
                             self.db.return_tool(&issuance_id);
                         }
                     } else {
-                        ui.label(RichText::new("Возвращено").color(Color32::from_rgb(46, 204, 113)));
-                        ui.label(issuance.returned_at.unwrap().format("%d.%m.%Y %H:%M").to_string());
+                        ui.label(RichText::new("Возвращено").font(FontId::proportional(18.0)).color(Color32::from_rgb(46, 204, 113)));
+                        ui.label(RichText::new(issuance.returned_at.unwrap().format("%d.%m.%Y %H:%M").to_string()).font(FontId::proportional(18.0)));
                     }
 
                     ui.end_row();
@@ -567,14 +640,15 @@ impl App {
     fn show_terminal(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("terminal_header").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.heading("Терминал выдачи");
+                ui.heading(RichText::new("Терминал выдачи").font(FontId::proportional(24.0)));
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("Выход").clicked() {
+                    if ui.button(RichText::new("Выход").font(FontId::proportional(18.0))).clicked() {
                         self.current_user = None;
                         self.screen = Screen::Login;
-                        self.login_username.clear();
-                        self.login_password.clear();
+                        let (saved_user, saved_pass) = Database::load_config();
+                        self.login_username = saved_user;
+                        self.login_password = saved_pass;
                         self.scanned_employee = None;
                         self.scanned_tool = None;
                         self.scan_input.clear();
@@ -584,12 +658,15 @@ impl App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_space(10.0);
+            ui.add_space(15.0);
 
             // Scan input
             ui.horizontal(|ui| {
-                ui.label("Сканировать:");
-                let response = ui.add(egui::TextEdit::singleline(&mut self.scan_input).desired_width(300.0).hint_text("Отсканируйте QR код..."));
+                ui.label(RichText::new("Сканировать:").font(FontId::proportional(20.0)));
+                let response = ui.add(egui::TextEdit::singleline(&mut self.scan_input)
+                    .desired_width(400.0)
+                    .hint_text("Отсканируйте QR код...")
+                    .font(FontId::proportional(20.0)));
 
                 if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                     self.process_scan();
@@ -600,109 +677,109 @@ impl App {
             ui.add_space(10.0);
 
             if !self.terminal_error.is_empty() {
-                ui.colored_label(Color32::RED, &self.terminal_error);
+                ui.colored_label(Color32::RED, RichText::new(&self.terminal_error).font(FontId::proportional(18.0)));
             }
 
             if !self.terminal_message.is_empty() {
-                ui.colored_label(Color32::from_rgb(46, 204, 113), &self.terminal_message);
+                ui.colored_label(Color32::from_rgb(46, 204, 113), RichText::new(&self.terminal_message).font(FontId::proportional(18.0)));
             }
 
-            ui.add_space(20.0);
+            ui.add_space(25.0);
 
             // Scanned items
             egui::Grid::new("scanned_items").num_columns(2).spacing([40.0, 10.0]).show(ui, |ui| {
                 // Employee
                 ui.group(|ui| {
-                    ui.set_min_size(Vec2::new(350.0, 200.0));
+                    ui.set_min_size(Vec2::new(400.0, 250.0));
                     ui.vertical(|ui| {
-                        ui.heading("Сотрудник");
+                        ui.heading(RichText::new("Сотрудник").font(FontId::proportional(22.0)));
 
                         if let Some(emp) = &self.scanned_employee {
-                            ui.label(RichText::new(&emp.name).font(FontId::proportional(18.0)).strong());
-                            ui.label(format!("Должность: {}", emp.position));
-                            ui.label(format!("Отдел: {}", emp.department));
+                            ui.label(RichText::new(&emp.name).font(FontId::proportional(22.0)).strong());
+                            ui.label(RichText::new(format!("Должность: {}", emp.position)).font(FontId::proportional(18.0)));
+                            ui.label(RichText::new(format!("Отдел: {}", emp.department)).font(FontId::proportional(18.0)));
 
                             let issued = self.db.get_employee_active_issuances(&emp.id);
                             ui.add_space(10.0);
-                            ui.label(format!("Выдано инструментов: {}", issued.len()));
+                            ui.label(RichText::new(format!("Выдано инструментов: {}", issued.len())).font(FontId::proportional(18.0)));
                         } else {
-                            ui.label("Отсканируйте QR код сотрудника");
+                            ui.label(RichText::new("Отсканируйте QR код сотрудника").font(FontId::proportional(18.0)));
                         }
                     });
                 });
 
                 // Tool
                 ui.group(|ui| {
-                    ui.set_min_size(Vec2::new(350.0, 200.0));
+                    ui.set_min_size(Vec2::new(400.0, 250.0));
                     ui.vertical(|ui| {
-                        ui.heading("Инструмент");
+                        ui.heading(RichText::new("Инструмент").font(FontId::proportional(22.0)));
 
                         if let Some(tool) = &self.scanned_tool {
-                            ui.label(RichText::new(&tool.name).font(FontId::proportional(18.0)).strong());
-                            ui.label(format!("Инв. номер: {}", tool.inventory_number));
+                            ui.label(RichText::new(&tool.name).font(FontId::proportional(22.0)).strong());
+                            ui.label(RichText::new(format!("Инв. номер: {}", tool.inventory_number)).font(FontId::proportional(18.0)));
 
                             let issued = self.db.get_issued_quantity(&tool.id);
                             let available = tool.total_quantity - issued;
 
                             ui.add_space(10.0);
                             ui.horizontal(|ui| {
-                                ui.label(format!("Всего: {}", tool.total_quantity));
-                                ui.label(RichText::new(format!("Выдано: {}", issued)).color(Color32::from_rgb(231, 76, 60)));
-                                ui.label(RichText::new(format!("Доступно: {}", available)).color(Color32::from_rgb(46, 204, 113)));
+                                ui.label(RichText::new(format!("Всего: {}", tool.total_quantity)).font(FontId::proportional(18.0)));
+                                ui.label(RichText::new(format!("Выдано: {}", issued)).font(FontId::proportional(18.0)).color(Color32::from_rgb(231, 76, 60)));
+                                ui.label(RichText::new(format!("Доступно: {}", available)).font(FontId::proportional(18.0)).color(Color32::from_rgb(46, 204, 113)));
                             });
 
                             if available > 0 && self.scanned_employee.is_some() {
-                                ui.add_space(10.0);
+                                ui.add_space(15.0);
                                 ui.horizontal(|ui| {
-                                    ui.label("Количество:");
-                                    if ui.button("-").clicked() && self.issue_quantity > 1 {
+                                    ui.label(RichText::new("Количество:").font(FontId::proportional(18.0)));
+                                    if ui.button(RichText::new(" - ").font(FontId::proportional(20.0))).clicked() && self.issue_quantity > 1 {
                                         self.issue_quantity -= 1;
                                     }
-                                    ui.label(self.issue_quantity.to_string());
-                                    if ui.button("+").clicked() && self.issue_quantity < available {
+                                    ui.label(RichText::new(self.issue_quantity.to_string()).font(FontId::proportional(20.0)));
+                                    if ui.button(RichText::new(" + ").font(FontId::proportional(20.0))).clicked() && self.issue_quantity < available {
                                         self.issue_quantity += 1;
                                     }
                                 });
 
-                                ui.add_space(10.0);
-                                if ui.button(RichText::new("Выдать").font(FontId::proportional(16.0))).clicked() {
+                                ui.add_space(15.0);
+                                if ui.button(RichText::new("Выдать").font(FontId::proportional(20.0))).clicked() {
                                     self.issue_tool();
                                 }
                             }
                         } else {
-                            ui.label("Отсканируйте QR код инструмента");
+                            ui.label(RichText::new("Отсканируйте QR код инструмента").font(FontId::proportional(18.0)));
                         }
                     });
                 });
             });
 
-            ui.add_space(20.0);
+            ui.add_space(25.0);
 
             // Active issuances for scanned employee
             if let Some(emp) = &self.scanned_employee {
-                ui.heading("Выданные инструменты:");
+                ui.heading(RichText::new("Выданные инструменты:").font(FontId::proportional(22.0)));
                 ui.add_space(10.0);
 
                 let issuances: Vec<_> = self.db.get_employee_active_issuances(&emp.id).into_iter().cloned().collect();
 
                 if issuances.is_empty() {
-                    ui.label("Нет выданных инструментов");
+                    ui.label(RichText::new("Нет выданных инструментов").font(FontId::proportional(18.0)));
                 } else {
-                    egui::Grid::new("employee_issuances").show(ui, |ui| {
-                        ui.label(RichText::new("Инструмент").strong());
-                        ui.label(RichText::new("Кол-во").strong());
-                        ui.label(RichText::new("Выдано").strong());
-                        ui.label(RichText::new("").strong());
+                    egui::Grid::new("employee_issuances").spacing([20.0, 10.0]).show(ui, |ui| {
+                        ui.label(RichText::new("Инструмент").font(FontId::proportional(18.0)).strong());
+                        ui.label(RichText::new("Кол-во").font(FontId::proportional(18.0)).strong());
+                        ui.label(RichText::new("Выдано").font(FontId::proportional(18.0)).strong());
+                        ui.label(RichText::new("").font(FontId::proportional(18.0)));
                         ui.end_row();
 
                         for issuance in &issuances {
                             let tool = self.db.tools.iter().find(|t| t.id == issuance.tool_id);
-                            ui.label(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно"));
-                            ui.label(issuance.quantity.to_string());
-                            ui.label(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string());
+                            ui.label(RichText::new(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                            ui.label(RichText::new(issuance.quantity.to_string()).font(FontId::proportional(18.0)));
+                            ui.label(RichText::new(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string()).font(FontId::proportional(18.0)));
 
                             let issuance_id = issuance.id.clone();
-                            if ui.button("Вернуть").clicked() {
+                            if ui.button(RichText::new("Вернуть").font(FontId::proportional(18.0))).clicked() {
                                 self.db.return_tool(&issuance_id);
                                 self.terminal_message = "Инструмент возвращен".to_string();
                             }

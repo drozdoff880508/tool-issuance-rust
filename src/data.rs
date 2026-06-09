@@ -111,6 +111,43 @@ impl Database {
         exe_dir.join("data").join("data.json")
     }
 
+    fn get_config_path() -> PathBuf {
+        let exe_dir = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        exe_dir.join("data").join("config.json")
+    }
+
+    pub fn load_config() -> (String, String) {
+        let path = Self::get_config_path();
+        if path.exists() {
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
+                    let username = config["last_username"].as_str().unwrap_or("").to_string();
+                    let password = config["last_password"].as_str().unwrap_or("").to_string();
+                    return (username, password);
+                }
+            }
+        }
+        (String::new(), String::new())
+    }
+
+    pub fn save_config(username: &str, password: &str) {
+        let path = Self::get_config_path();
+        if let Some(parent) = path.parent() {
+            if !parent.exists() {
+                let _ = fs::create_dir_all(parent);
+            }
+        }
+        let config = serde_json::json!({
+            "last_username": username,
+            "last_password": password
+        });
+        let _ = fs::write(&path, serde_json::to_string_pretty(&config).unwrap_or_default());
+    }
+
     fn create_default() -> Self {
         let mut db = Database::default();
 
@@ -237,6 +274,31 @@ impl Database {
         if let Some(issuance) = self.issuances.iter_mut().find(|i| i.id == issuance_id) {
             issuance.returned_at = Some(Local::now());
             self.save();
+        }
+    }
+
+    // Write off tool (reduce total quantity)
+    pub fn write_off_tool(&mut self, tool_id: &str, quantity: i32) -> Result<(), String> {
+        // First get the issued quantity (immutable borrow)
+        let issued = self.get_issued_quantity(tool_id);
+        
+        // Find tool and check availability
+        let tool = self.tools.iter().find(|t| t.id == tool_id);
+        if let Some(tool_ref) = tool {
+            let available = tool_ref.total_quantity - issued;
+            
+            if quantity > available {
+                return Err(format!("Нельзя списать больше чем доступно. Доступно: {}", available));
+            }
+            
+            // Now mutate
+            if let Some(tool) = self.tools.iter_mut().find(|t| t.id == tool_id) {
+                tool.total_quantity -= quantity;
+                self.save();
+            }
+            Ok(())
+        } else {
+            Err("Инструмент не найден".to_string())
         }
     }
 
