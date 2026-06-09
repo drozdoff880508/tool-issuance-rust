@@ -319,12 +319,12 @@ impl App {
 
         // Search field
         ui.horizontal(|ui| {
-            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.label(RichText::new("Поиск:").font(FontId::proportional(18.0)));
             ui.add(egui::TextEdit::singleline(&mut self.employee_search)
                 .desired_width(300.0)
                 .hint_text("Поиск по ФИО, должности, отделу...")
                 .font(FontId::proportional(18.0)));
-            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+            if ui.button(RichText::new("Очистить").font(FontId::proportional(16.0))).clicked() {
                 self.employee_search.clear();
             }
         });
@@ -388,9 +388,9 @@ impl App {
 
         ui.add_space(20.0);
 
-        // Filter employees by search
+        // Filter employees by search - clone data to avoid borrow issues
         let search_lower = self.employee_search.to_lowercase();
-        let filtered_employees: Vec<_> = self.db.employees.iter()
+        let filtered_employees: Vec<Employee> = self.db.employees.iter()
             .filter(|e| {
                 if search_lower.is_empty() {
                     true
@@ -401,7 +401,11 @@ impl App {
                     e.qr_code.to_lowercase().contains(&search_lower)
                 }
             })
+            .cloned()
             .collect();
+
+        let is_search_empty = self.employee_search.is_empty();
+        let is_filtered_empty = filtered_employees.is_empty();
 
         // Employees table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
@@ -413,29 +417,34 @@ impl App {
                 ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                for employee in filtered_employees {
+                for employee in &filtered_employees {
                     ui.label(RichText::new(&employee.name).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&employee.position).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&employee.department).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&employee.qr_code).font(FontId::proportional(18.0)));
 
+                    let emp_id = employee.id.clone();
+                    let emp_name = employee.name.clone();
+                    let emp_pos = employee.position.clone();
+                    let emp_dept = employee.department.clone();
+
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("✏️").font(FontId::proportional(18.0))).clicked() {
-                            self.employee_name = employee.name.clone();
-                            self.employee_position = employee.position.clone();
-                            self.employee_department = employee.department.clone();
-                            self.editing_employee_id = Some(employee.id.clone());
+                        if ui.button(RichText::new("Редакт.").font(FontId::proportional(16.0))).clicked() {
+                            self.employee_name = emp_name.clone();
+                            self.employee_position = emp_pos.clone();
+                            self.employee_department = emp_dept.clone();
+                            self.editing_employee_id = Some(emp_id.clone());
                         }
 
-                        if ui.button(RichText::new("🗑️").font(FontId::proportional(18.0))).clicked() {
-                            self.db.delete_employee(&employee.id);
+                        if ui.button(RichText::new("Удалить").font(FontId::proportional(16.0))).clicked() {
+                            self.db.delete_employee(&emp_id);
                         }
                     });
 
                     ui.end_row();
                 }
 
-                if filtered_employees.is_empty() && !self.employee_search.is_empty() {
+                if is_filtered_empty && !is_search_empty {
                     ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
                 }
             });
@@ -460,12 +469,12 @@ impl App {
 
         // Search field
         ui.horizontal(|ui| {
-            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.label(RichText::new("Поиск:").font(FontId::proportional(18.0)));
             ui.add(egui::TextEdit::singleline(&mut self.tool_search)
                 .desired_width(300.0)
                 .hint_text("Поиск по названию, инв. номеру, категории...")
                 .font(FontId::proportional(18.0)));
-            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+            if ui.button(RichText::new("Очистить").font(FontId::proportional(16.0))).clicked() {
                 self.tool_search.clear();
             }
         });
@@ -588,21 +597,29 @@ impl App {
 
         ui.add_space(20.0);
 
-        // Filter tools by search
+        // Filter tools by search - clone to avoid borrow issues
         let search_lower = self.tool_search.to_lowercase();
-        let filtered_tools: Vec<_> = self.db.tools.iter()
+        let categories: std::collections::HashMap<String, String> = self.db.categories.iter()
+            .map(|c| (c.id.clone(), c.name.clone()))
+            .collect();
+        
+        let filtered_tools: Vec<Tool> = self.db.tools.iter()
             .filter(|t| {
                 if search_lower.is_empty() {
                     true
                 } else {
-                    let category_name = self.db.get_category_name(&t.category_id);
+                    let category_name = categories.get(&t.category_id).cloned().unwrap_or_default();
                     t.name.to_lowercase().contains(&search_lower) ||
                     t.inventory_number.to_lowercase().contains(&search_lower) ||
                     category_name.to_lowercase().contains(&search_lower) ||
                     t.qr_code.to_lowercase().contains(&search_lower)
                 }
             })
+            .cloned()
             .collect();
+
+        let is_search_empty = self.tool_search.is_empty();
+        let is_filtered_empty = filtered_tools.is_empty();
 
         // Tools table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
@@ -617,35 +634,40 @@ impl App {
                 ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                for tool in filtered_tools {
-                    ui.label(RichText::new(&tool.name).font(FontId::proportional(18.0)));
-                    ui.label(RichText::new(&tool.inventory_number).font(FontId::proportional(18.0)));
-                    ui.label(RichText::new(self.db.get_category_name(&tool.category_id)).font(FontId::proportional(18.0)));
-
+                for tool in &filtered_tools {
+                    let category_name = categories.get(&tool.category_id).cloned().unwrap_or_default();
                     let issued = self.db.get_issued_quantity(&tool.id);
                     let available = tool.total_quantity - issued;
 
+                    ui.label(RichText::new(&tool.name).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&tool.inventory_number).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&category_name).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(tool.total_quantity.to_string()).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(issued.to_string()).font(FontId::proportional(18.0)).color(Color32::from_rgb(231, 76, 60)));
                     ui.label(RichText::new(available.to_string()).font(FontId::proportional(18.0)).color(Color32::from_rgb(46, 204, 113)));
-
                     ui.label(RichText::new(&tool.qr_code).font(FontId::proportional(16.0)));
 
+                    let tool_id = tool.id.clone();
+                    let tool_name = tool.name.clone();
+                    let tool_inv = tool.inventory_number.clone();
+                    let tool_cat = tool.category_id.clone();
+                    let tool_qty = tool.total_quantity;
+
                     ui.horizontal(|ui| {
-                        if ui.button(RichText::new("✏️").font(FontId::proportional(16.0))).clicked() {
-                            self.tool_name = tool.name.clone();
-                            self.tool_inventory = tool.inventory_number.clone();
-                            self.tool_category = tool.category_id.clone();
-                            self.tool_quantity_str = tool.total_quantity.to_string();
-                            self.editing_tool_id = Some(tool.id.clone());
+                        if ui.button(RichText::new("Редакт.").font(FontId::proportional(14.0))).clicked() {
+                            self.tool_name = tool_name;
+                            self.tool_inventory = tool_inv;
+                            self.tool_category = tool_cat;
+                            self.tool_quantity_str = tool_qty.to_string();
+                            self.editing_tool_id = Some(tool_id.clone());
                         }
 
-                        if ui.button(RichText::new("🗑️").font(FontId::proportional(16.0))).clicked() {
-                            self.db.delete_tool(&tool.id);
+                        if ui.button(RichText::new("Удалить").font(FontId::proportional(14.0))).clicked() {
+                            self.db.delete_tool(&tool_id);
                         }
 
-                        if ui.button(RichText::new("📉 Списать").font(FontId::proportional(16.0))).clicked() {
-                            self.write_off_tool_id = Some(tool.id.clone());
+                        if ui.button(RichText::new("Списать").font(FontId::proportional(14.0))).clicked() {
+                            self.write_off_tool_id = Some(tool_id);
                             self.write_off_quantity_str = "1".to_string();
                         }
                     });
@@ -653,7 +675,7 @@ impl App {
                     ui.end_row();
                 }
 
-                if filtered_tools.is_empty() && !self.tool_search.is_empty() {
+                if is_filtered_empty && !is_search_empty {
                     ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
                 }
             });
@@ -667,12 +689,12 @@ impl App {
 
         // Search field
         ui.horizontal(|ui| {
-            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.label(RichText::new("Поиск:").font(FontId::proportional(18.0)));
             ui.add(egui::TextEdit::singleline(&mut self.issuance_search)
                 .desired_width(300.0)
                 .hint_text("Поиск по инструменту или сотруднику...")
                 .font(FontId::proportional(18.0)));
-            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+            if ui.button(RichText::new("Очистить").font(FontId::proportional(16.0))).clicked() {
                 self.issuance_search.clear();
             }
         });
@@ -687,26 +709,36 @@ impl App {
 
         ui.add_space(10.0);
 
-        // Filter issuances by search
+        // Filter issuances by search - clone data
         let search_lower = self.issuance_search.to_lowercase();
-        let filtered_issuances: Vec<_> = self.db.issuances.iter()
+        
+        // Build lookup maps
+        let tool_names: std::collections::HashMap<String, String> = self.db.tools.iter()
+            .map(|t| (t.id.clone(), t.name.clone())).collect();
+        let tool_inventories: std::collections::HashMap<String, String> = self.db.tools.iter()
+            .map(|t| (t.id.clone(), t.inventory_number.clone())).collect();
+        let employee_names: std::collections::HashMap<String, String> = self.db.employees.iter()
+            .map(|e| (e.id.clone(), e.name.clone())).collect();
+
+        let filtered_issuances: Vec<Issuance> = self.db.issuances.iter()
             .filter(|i| {
                 if search_lower.is_empty() {
                     true
                 } else {
-                    let tool = self.db.tools.iter().find(|t| t.id == i.tool_id);
-                    let employee = self.db.employees.iter().find(|e| e.id == i.employee_id);
+                    let tool_name = tool_names.get(&i.tool_id).cloned().unwrap_or_default();
+                    let employee_name = employee_names.get(&i.employee_id).cloned().unwrap_or_default();
+                    let inventory = tool_inventories.get(&i.tool_id).cloned().unwrap_or_default();
 
-                    let tool_name = tool.map(|t| t.name.to_lowercase()).unwrap_or_default();
-                    let employee_name = employee.map(|e| e.name.to_lowercase()).unwrap_or_default();
-                    let inventory = tool.map(|t| t.inventory_number.to_lowercase()).unwrap_or_default();
-
-                    tool_name.contains(&search_lower) ||
-                    employee_name.contains(&search_lower) ||
-                    inventory.contains(&search_lower)
+                    tool_name.to_lowercase().contains(&search_lower) ||
+                    employee_name.to_lowercase().contains(&search_lower) ||
+                    inventory.to_lowercase().contains(&search_lower)
                 }
             })
+            .cloned()
             .collect();
+
+        let is_search_empty = self.issuance_search.is_empty();
+        let is_filtered_empty = filtered_issuances.is_empty();
 
         egui::ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
             egui::Grid::new("issuances_table").spacing([20.0, 10.0]).show(ui, |ui| {
@@ -718,12 +750,12 @@ impl App {
                 ui.label(RichText::new("Действие").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                for issuance in filtered_issuances.iter() {
-                    let tool = self.db.tools.iter().find(|t| t.id == issuance.tool_id);
-                    let employee = self.db.employees.iter().find(|e| e.id == issuance.employee_id);
+                for issuance in &filtered_issuances {
+                    let tool_name = tool_names.get(&issuance.tool_id).cloned().unwrap_or_else(|| "Неизвестно".to_string());
+                    let employee_name = employee_names.get(&issuance.employee_id).cloned().unwrap_or_else(|| "Неизвестно".to_string());
 
-                    ui.label(RichText::new(tool.map(|t| t.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
-                    ui.label(RichText::new(employee.map(|e| e.name.as_str()).unwrap_or("Неизвестно")).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&tool_name).font(FontId::proportional(18.0)));
+                    ui.label(RichText::new(&employee_name).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(issuance.quantity.to_string()).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(issuance.issued_at.format("%d.%m.%Y %H:%M").to_string()).font(FontId::proportional(18.0)));
 
@@ -742,7 +774,7 @@ impl App {
                     ui.end_row();
                 }
 
-                if filtered_issuances.is_empty() && !self.issuance_search.is_empty() {
+                if is_filtered_empty && !is_search_empty {
                     ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
                 }
             });
