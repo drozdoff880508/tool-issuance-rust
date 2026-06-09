@@ -119,7 +119,6 @@ impl App {
                 egui::Frame::none()
                     .fill(Color32::from_rgb(240, 240, 240))
                     .inner_margin(30.0)
-                    .rounding(10.0)
                     .show(ui, |ui| {
                         ui.set_min_width(400.0);
 
