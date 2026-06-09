@@ -6,7 +6,7 @@ mod gui;
 use eframe::egui;
 use gui::App;
 
-fn main() {
+fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 800.0])
@@ -14,9 +14,9 @@ fn main() {
         ..Default::default()
     };
 
-    let _ = eframe::run_native(
+    eframe::run_native(
         "Tool Issuance System",
         options,
-        Box::new(|cc| Box::new(App::new(cc))),
-    );
+        Box::new(|cc| Ok(Box::new(App::new(cc)))),
+    )
 }
