@@ -507,7 +507,8 @@ impl App {
                     ui.label(RichText::new("Это действие нельзя отменить!").font(FontId::proportional(16.0)).color(Color32::from_rgb(150, 150, 150)));
                     ui.add_space(20.0);
                     ui.horizontal(|ui| {
-                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0))).fill(Color32::from_rgb(231, 76, 60))).clicked() {
+                        let delete_btn = egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0)).color(Color32::WHITE));
+                        if ui.add_sized([120.0, 40.0], delete_btn).clicked() {
                             self.db.delete_employee(&emp_id);
                             self.delete_employee_id = None;
                             self.delete_employee_name.clear();
@@ -777,7 +778,8 @@ impl App {
                     ui.label(RichText::new("Это действие нельзя отменить!").font(FontId::proportional(16.0)).color(Color32::from_rgb(150, 150, 150)));
                     ui.add_space(20.0);
                     ui.horizontal(|ui| {
-                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0))).fill(Color32::from_rgb(231, 76, 60))).clicked() {
+                        let delete_btn = egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0)).color(Color32::WHITE));
+                        if ui.add_sized([120.0, 40.0], delete_btn).clicked() {
                             self.db.delete_tool(&tool_id);
                             self.delete_tool_id = None;
                             self.delete_tool_name.clear();
