@@ -734,20 +734,20 @@ impl App {
 
                         ui.horizontal(|ui| {
                             if ui.button(RichText::new("Редакт.").font(FontId::proportional(14.0))).clicked() {
-                                self.tool_name = tool_name;
-                                self.tool_inventory = tool_inv;
-                                self.tool_category = tool_cat;
+                                self.tool_name = tool_name.clone();
+                                self.tool_inventory = tool_inv.clone();
+                                self.tool_category = tool_cat.clone();
                                 self.tool_quantity_str = tool_qty.to_string();
                                 self.editing_tool_id = Some(tool_id.clone());
                             }
 
                             if ui.button(RichText::new("Удалить").font(FontId::proportional(14.0)).color(Color32::RED)).clicked() {
-                                self.delete_tool_id = Some(tool_id);
-                                self.delete_tool_name = tool_name;
+                                self.delete_tool_id = Some(tool_id.clone());
+                                self.delete_tool_name = tool_name.clone();
                             }
 
                             if ui.button(RichText::new("Списать").font(FontId::proportional(14.0))).clicked() {
-                                self.write_off_tool_id = Some(tool_id);
+                                self.write_off_tool_id = Some(tool_id.clone());
                                 self.write_off_quantity_str = "1".to_string();
                             }
                         });
