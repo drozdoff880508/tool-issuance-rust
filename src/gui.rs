@@ -1,4 +1,4 @@
-use crate::data::{Database, Employee, Issuance, Role, Tool, User};
+use crate::data::{Category, Database, Employee, Issuance, Role, Tool, User};
 use chrono::Local;
 use eframe::egui;
 use egui::{Color32, FontId, RichText, Vec2};
@@ -25,6 +25,7 @@ enum AdminTab {
     Overview,
     Employees,
     Tools,
+    Categories,
     Issuances,
 }
 
@@ -66,6 +67,11 @@ pub struct App {
     delete_employee_name: String,
     delete_tool_id: Option<String>,
     delete_tool_name: String,
+    delete_category_id: Option<String>,
+    delete_category_name: String,
+
+    // Category form
+    new_category_name: String,
 
     // Terminal
     scan_input: String,
@@ -108,6 +114,9 @@ impl App {
             delete_employee_name: String::new(),
             delete_tool_id: None,
             delete_tool_name: String::new(),
+            delete_category_id: None,
+            delete_category_name: String::new(),
+            new_category_name: String::new(),
             scan_input: String::new(),
             scanned_employee: None,
             scanned_tool: None,
@@ -202,6 +211,9 @@ impl App {
                 if ui.selectable_label(tab == AdminTab::Tools, RichText::new("Инструменты").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Tools);
                 }
+                if ui.selectable_label(tab == AdminTab::Categories, RichText::new("Категории").font(FontId::proportional(18.0))).clicked() {
+                    self.screen = Screen::Admin(AdminTab::Categories);
+                }
                 if ui.selectable_label(tab == AdminTab::Issuances, RichText::new("Выдачи").font(FontId::proportional(18.0))).clicked() {
                     self.screen = Screen::Admin(AdminTab::Issuances);
                 }
@@ -223,6 +235,7 @@ impl App {
                 AdminTab::Overview => self.show_overview(ui),
                 AdminTab::Employees => self.show_employees(ui),
                 AdminTab::Tools => self.show_tools(ui),
+                AdminTab::Categories => self.show_categories(ui),
                 AdminTab::Issuances => self.show_issuances(ui),
             }
         });
@@ -783,6 +796,106 @@ impl App {
                         if ui.button(RichText::new("Отмена").font(FontId::proportional(18.0))).clicked() {
                             self.delete_tool_id = None;
                             self.delete_tool_name.clear();
+                        }
+                    });
+                });
+        }
+    }
+
+    fn show_categories(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.heading(RichText::new("Категории инструментов").font(FontId::proportional(24.0)));
+        });
+
+        ui.add_space(15.0);
+
+        // Add category form
+        ui.group(|ui| {
+            ui.label(RichText::new("Добавить новую категорию:").font(FontId::proportional(18.0)).strong());
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Название:").font(FontId::proportional(18.0)));
+                ui.add(egui::TextEdit::singleline(&mut self.new_category_name)
+                    .desired_width(300.0)
+                    .hint_text("Введите название категории...")
+                    .font(FontId::proportional(18.0)));
+                if ui.button(RichText::new("Добавить").font(FontId::proportional(18.0))).clicked() {
+                    if !self.new_category_name.trim().is_empty() {
+                        let category = Category {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            name: self.new_category_name.trim().to_string(),
+                        };
+                        self.db.add_category(category);
+                        self.new_category_name.clear();
+                    }
+                }
+            });
+        });
+
+        ui.add_space(20.0);
+
+        // Categories list
+        ui.label(RichText::new(format!("Всего категорий: {}", self.db.categories.len())).font(FontId::proportional(18.0)));
+        ui.add_space(10.0);
+
+        egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
+            egui::Grid::new("categories_table")
+                .min_col_width(300.0)
+                .spacing([20.0, 10.0])
+                .show(ui, |ui| {
+                    ui.label(RichText::new("Название").font(FontId::proportional(18.0)).strong());
+                    ui.label(RichText::new("Инструментов").font(FontId::proportional(18.0)).strong());
+                    ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
+                    ui.end_row();
+
+                    for category in &self.db.categories {
+                        let cat_id = category.id.clone();
+                        let cat_name = category.name.clone();
+                        
+                        // Count tools in this category
+                        let tool_count = self.db.tools.iter().filter(|t| t.category_id == category.id).count();
+                        
+                        ui.label(RichText::new(&category.name).font(FontId::proportional(18.0)));
+                        ui.label(RichText::new(tool_count.to_string()).font(FontId::proportional(18.0)));
+                        
+                        ui.horizontal(|ui| {
+                            if ui.button(RichText::new("Удалить").font(FontId::proportional(16.0)).color(Color32::RED)).clicked() {
+                                self.delete_category_id = Some(cat_id);
+                                self.delete_category_name = cat_name;
+                            }
+                        });
+                        
+                        ui.end_row();
+                    }
+
+                    if self.db.categories.is_empty() {
+                        ui.label(RichText::new("Нет категорий").font(FontId::proportional(18.0)));
+                    }
+                });
+        });
+
+        // Delete category confirmation dialog
+        if let Some(cat_id) = &self.delete_category_id.clone() {
+            egui::Window::new(RichText::new("Подтверждение удаления").font(FontId::proportional(20.0)))
+                .collapsible(false)
+                .resizable(false)
+                .show(ui.ctx(), |ui| {
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Вы уверены, что хотите удалить категорию?").font(FontId::proportional(18.0)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new(&self.delete_category_name).font(FontId::proportional(18.0)).strong().color(Color32::from_rgb(231, 76, 60)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new("Инструменты этой категории останутся без категории.").font(FontId::proportional(16.0)).color(Color32::from_rgb(150, 150, 150)));
+                    ui.add_space(20.0);
+                    ui.horizontal(|ui| {
+                        if ui.button(RichText::new("Удалить").font(FontId::proportional(18.0))).clicked() {
+                            self.db.delete_category(&cat_id);
+                            self.delete_category_id = None;
+                            self.delete_category_name.clear();
+                        }
+                        if ui.button(RichText::new("Отмена").font(FontId::proportional(18.0))).clicked() {
+                            self.delete_category_id = None;
+                            self.delete_category_name.clear();
                         }
                     });
                 });

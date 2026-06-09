@@ -322,6 +322,23 @@ impl Database {
             .unwrap_or_else(|| "Без категории".to_string())
     }
 
+    pub fn add_category(&mut self, category: Category) {
+        self.categories.push(category);
+        self.save();
+    }
+
+    pub fn update_category(&mut self, category: Category) {
+        if let Some(idx) = self.categories.iter().position(|c| c.id == category.id) {
+            self.categories[idx] = category;
+            self.save();
+        }
+    }
+
+    pub fn delete_category(&mut self, id: &str) {
+        self.categories.retain(|c| c.id != id);
+        self.save();
+    }
+
     // Statistics
     pub fn get_stats(&self) -> HashMap<String, i32> {
         let mut stats = HashMap::new();
