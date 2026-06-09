@@ -1,0 +1,6 @@
+/target
+/data
+*.exe
+*.pdb
+.DS_Store
+Thumbs.db

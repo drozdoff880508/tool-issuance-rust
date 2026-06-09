@@ -1,0 +1,21 @@
+[package]
+name = "tool-issuance"
+version = "1.0.0"
+edition = "2021"
+authors = ["Tool Issuance System"]
+description = "Система учета выдачи инструментов"
+
+[dependencies]
+eframe = "0.31"
+egui = "0.31"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
