@@ -61,6 +61,12 @@ pub struct App {
     write_off_tool_id: Option<String>,
     write_off_quantity_str: String,
 
+    // Delete confirmation dialogs
+    delete_employee_id: Option<String>,
+    delete_employee_name: String,
+    delete_tool_id: Option<String>,
+    delete_tool_name: String,
+
     // Terminal
     scan_input: String,
     scanned_employee: Option<Employee>,
@@ -98,6 +104,10 @@ impl App {
             editing_tool_id: None,
             write_off_tool_id: None,
             write_off_quantity_str: "1".to_string(),
+            delete_employee_id: None,
+            delete_employee_name: String::new(),
+            delete_tool_id: None,
+            delete_tool_name: String::new(),
             scan_input: String::new(),
             scanned_employee: None,
             scanned_tool: None,
@@ -467,8 +477,9 @@ impl App {
                                 self.editing_employee_id = Some(emp_id.clone());
                             }
 
-                            if ui.button(RichText::new("Удалить").font(FontId::proportional(16.0))).clicked() {
-                                self.db.delete_employee(&emp_id);
+                            if ui.button(RichText::new("Удалить").font(FontId::proportional(16.0)).color(Color32::RED)).clicked() {
+                                self.delete_employee_id = Some(emp_id);
+                                self.delete_employee_name = emp_name;
                             }
                         });
 
@@ -480,6 +491,34 @@ impl App {
                     }
                 });
         });
+
+        // Delete employee confirmation dialog
+        if let Some(emp_id) = &self.delete_employee_id.clone() {
+            egui::Window::new(RichText::new("Подтверждение удаления").font(FontId::proportional(20.0)))
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ui.ctx(), |ui| {
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Вы уверены, что хотите удалить сотрудника?").font(FontId::proportional(18.0)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new(&self.delete_employee_name).font(FontId::proportional(18.0)).strong().color(Color32::from_rgb(231, 76, 60)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new("Это действие нельзя отменить!").font(FontId::proportional(16.0)).color(Color32::from_rgb(150, 150, 150)));
+                    ui.add_space(20.0);
+                    ui.horizontal(|ui| {
+                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0))).fill(Color32::from_rgb(231, 76, 60))).clicked() {
+                            self.db.delete_employee(&emp_id);
+                            self.delete_employee_id = None;
+                            self.delete_employee_name.clear();
+                        }
+                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Отмена").font(FontId::proportional(18.0)))).clicked() {
+                            self.delete_employee_id = None;
+                            self.delete_employee_name.clear();
+                        }
+                    });
+                });
+        }
     }
 
     fn show_tools(&mut self, ui: &mut egui::Ui) {
@@ -703,8 +742,9 @@ impl App {
                                 self.editing_tool_id = Some(tool_id.clone());
                             }
 
-                            if ui.button(RichText::new("Удалить").font(FontId::proportional(14.0))).clicked() {
-                                self.db.delete_tool(&tool_id);
+                            if ui.button(RichText::new("Удалить").font(FontId::proportional(14.0)).color(Color32::RED)).clicked() {
+                                self.delete_tool_id = Some(tool_id);
+                                self.delete_tool_name = tool_name;
                             }
 
                             if ui.button(RichText::new("Списать").font(FontId::proportional(14.0))).clicked() {
@@ -721,6 +761,34 @@ impl App {
                     }
                 });
         });
+
+        // Delete tool confirmation dialog
+        if let Some(tool_id) = &self.delete_tool_id.clone() {
+            egui::Window::new(RichText::new("Подтверждение удаления").font(FontId::proportional(20.0)))
+                .collapsible(false)
+                .resizable(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ui.ctx(), |ui| {
+                    ui.add_space(10.0);
+                    ui.label(RichText::new("Вы уверены, что хотите удалить инструмент?").font(FontId::proportional(18.0)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new(&self.delete_tool_name).font(FontId::proportional(18.0)).strong().color(Color32::from_rgb(231, 76, 60)));
+                    ui.add_space(5.0);
+                    ui.label(RichText::new("Это действие нельзя отменить!").font(FontId::proportional(16.0)).color(Color32::from_rgb(150, 150, 150)));
+                    ui.add_space(20.0);
+                    ui.horizontal(|ui| {
+                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Удалить").font(FontId::proportional(18.0))).fill(Color32::from_rgb(231, 76, 60))).clicked() {
+                            self.db.delete_tool(&tool_id);
+                            self.delete_tool_id = None;
+                            self.delete_tool_name.clear();
+                        }
+                        if ui.add_sized([120.0, 40.0], egui::Button::new(RichText::new("Отмена").font(FontId::proportional(18.0)))).clicked() {
+                            self.delete_tool_id = None;
+                            self.delete_tool_name.clear();
+                        }
+                    });
+                });
+        }
     }
 
     fn show_issuances(&mut self, ui: &mut egui::Ui) {
