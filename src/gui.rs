@@ -29,6 +29,11 @@ pub struct App {
     login_error: String,
     remember_me: bool,
 
+    // Search
+    employee_search: String,
+    tool_search: String,
+    issuance_search: String,
+
     // Employee form
     employee_name: String,
     employee_position: String,
@@ -69,6 +74,9 @@ impl App {
             login_password: saved_password,
             login_error: String::new(),
             remember_me,
+            employee_search: String::new(),
+            tool_search: String::new(),
+            issuance_search: String::new(),
             employee_name: String::new(),
             employee_position: String::new(),
             employee_department: String::new(),
@@ -310,6 +318,20 @@ impl App {
 
         ui.add_space(10.0);
 
+        // Search field
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.add(egui::TextEdit::singleline(&mut self.employee_search)
+                .desired_width(300.0)
+                .hint_text("Поиск по ФИО, должности, отделу...")
+                .font(FontId::proportional(18.0)));
+            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+                self.employee_search.clear();
+            }
+        });
+
+        ui.add_space(10.0);
+
         // Add/Edit form
         egui::CollapsingHeader::new(RichText::new(if self.editing_employee_id.is_some() { "Редактировать сотрудника" } else { "Добавить сотрудника" }).font(FontId::proportional(20.0)))
             .default_open(self.editing_employee_id.is_some())
@@ -367,6 +389,21 @@ impl App {
 
         ui.add_space(20.0);
 
+        // Filter employees by search
+        let search_lower = self.employee_search.to_lowercase();
+        let filtered_employees: Vec<_> = self.db.employees.iter()
+            .filter(|e| {
+                if search_lower.is_empty() {
+                    true
+                } else {
+                    e.name.to_lowercase().contains(&search_lower) ||
+                    e.position.to_lowercase().contains(&search_lower) ||
+                    e.department.to_lowercase().contains(&search_lower) ||
+                    e.qr_code.to_lowercase().contains(&search_lower)
+                }
+            })
+            .collect();
+
         // Employees table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
             egui::Grid::new("employees_table").spacing([20.0, 10.0]).show(ui, |ui| {
@@ -377,7 +414,7 @@ impl App {
                 ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                for employee in self.db.employees.clone() {
+                for employee in filtered_employees {
                     ui.label(RichText::new(&employee.name).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&employee.position).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&employee.department).font(FontId::proportional(18.0)));
@@ -398,6 +435,10 @@ impl App {
 
                     ui.end_row();
                 }
+
+                if filtered_employees.is_empty() && !self.employee_search.is_empty() {
+                    ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
+                }
             });
         });
     }
@@ -414,6 +455,20 @@ impl App {
                     self.editing_tool_id = None;
                 }
             });
+        });
+
+        ui.add_space(10.0);
+
+        // Search field
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.add(egui::TextEdit::singleline(&mut self.tool_search)
+                .desired_width(300.0)
+                .hint_text("Поиск по названию, инв. номеру, категории...")
+                .font(FontId::proportional(18.0)));
+            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+                self.tool_search.clear();
+            }
         });
 
         ui.add_space(10.0);
@@ -500,13 +555,13 @@ impl App {
                         let issued = self.db.get_issued_quantity(&tool.id);
                         let available = tool.total_quantity - issued;
                         ui.label(RichText::new(format!("Доступно для списания: {}", available)).font(FontId::proportional(18.0)));
-                        
+
                         ui.add_space(10.0);
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Количество:").font(FontId::proportional(18.0)));
                             ui.add(egui::TextEdit::singleline(&mut self.write_off_quantity_str).desired_width(80.0).font(FontId::proportional(18.0)));
                         });
-                        
+
                         ui.add_space(15.0);
                         ui.horizontal(|ui| {
                             if ui.button(RichText::new("Списать").font(FontId::proportional(18.0))).clicked() {
@@ -534,6 +589,22 @@ impl App {
 
         ui.add_space(20.0);
 
+        // Filter tools by search
+        let search_lower = self.tool_search.to_lowercase();
+        let filtered_tools: Vec<_> = self.db.tools.iter()
+            .filter(|t| {
+                if search_lower.is_empty() {
+                    true
+                } else {
+                    let category_name = self.db.get_category_name(&t.category_id);
+                    t.name.to_lowercase().contains(&search_lower) ||
+                    t.inventory_number.to_lowercase().contains(&search_lower) ||
+                    category_name.to_lowercase().contains(&search_lower) ||
+                    t.qr_code.to_lowercase().contains(&search_lower)
+                }
+            })
+            .collect();
+
         // Tools table
         egui::ScrollArea::vertical().max_height(400.0).show(ui, |ui| {
             egui::Grid::new("tools_table").spacing([15.0, 10.0]).show(ui, |ui| {
@@ -547,7 +618,7 @@ impl App {
                 ui.label(RichText::new("Действия").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                for tool in self.db.tools.clone() {
+                for tool in filtered_tools {
                     ui.label(RichText::new(&tool.name).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(&tool.inventory_number).font(FontId::proportional(18.0)));
                     ui.label(RichText::new(self.db.get_category_name(&tool.category_id)).font(FontId::proportional(18.0)));
@@ -573,7 +644,7 @@ impl App {
                         if ui.button(RichText::new("🗑️").font(FontId::proportional(16.0))).clicked() {
                             self.db.delete_tool(&tool.id);
                         }
-                        
+
                         if ui.button(RichText::new("📉 Списать").font(FontId::proportional(16.0))).clicked() {
                             self.write_off_tool_id = Some(tool.id.clone());
                             self.write_off_quantity_str = "1".to_string();
@@ -582,12 +653,30 @@ impl App {
 
                     ui.end_row();
                 }
+
+                if filtered_tools.is_empty() && !self.tool_search.is_empty() {
+                    ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
+                }
             });
         });
     }
 
     fn show_issuances(&mut self, ui: &mut egui::Ui) {
         ui.heading(RichText::new("Выдачи").font(FontId::proportional(24.0)));
+
+        ui.add_space(10.0);
+
+        // Search field
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("🔍 Поиск:").font(FontId::proportional(18.0)));
+            ui.add(egui::TextEdit::singleline(&mut self.issuance_search)
+                .desired_width(300.0)
+                .hint_text("Поиск по инструменту или сотруднику...")
+                .font(FontId::proportional(18.0)));
+            if ui.button(RichText::new("✖").font(FontId::proportional(18.0))).clicked() {
+                self.issuance_search.clear();
+            }
+        });
 
         ui.add_space(10.0);
 
@@ -599,6 +688,27 @@ impl App {
 
         ui.add_space(10.0);
 
+        // Filter issuances by search
+        let search_lower = self.issuance_search.to_lowercase();
+        let filtered_issuances: Vec<_> = self.db.issuances.iter()
+            .filter(|i| {
+                if search_lower.is_empty() {
+                    true
+                } else {
+                    let tool = self.db.tools.iter().find(|t| t.id == i.tool_id);
+                    let employee = self.db.employees.iter().find(|e| e.id == i.employee_id);
+
+                    let tool_name = tool.map(|t| t.name.to_lowercase()).unwrap_or_default();
+                    let employee_name = employee.map(|e| e.name.to_lowercase()).unwrap_or_default();
+                    let inventory = tool.map(|t| t.inventory_number.to_lowercase()).unwrap_or_default();
+
+                    tool_name.contains(&search_lower) ||
+                    employee_name.contains(&search_lower) ||
+                    inventory.contains(&search_lower)
+                }
+            })
+            .collect();
+
         egui::ScrollArea::vertical().max_height(500.0).show(ui, |ui| {
             egui::Grid::new("issuances_table").spacing([20.0, 10.0]).show(ui, |ui| {
                 ui.label(RichText::new("Инструмент").font(FontId::proportional(18.0)).strong());
@@ -609,8 +719,7 @@ impl App {
                 ui.label(RichText::new("Действие").font(FontId::proportional(18.0)).strong());
                 ui.end_row();
 
-                let issuances: Vec<_> = self.db.issuances.clone();
-                for issuance in issuances.iter() {
+                for issuance in filtered_issuances.iter() {
                     let tool = self.db.tools.iter().find(|t| t.id == issuance.tool_id);
                     let employee = self.db.employees.iter().find(|e| e.id == issuance.employee_id);
 
@@ -632,6 +741,10 @@ impl App {
                     }
 
                     ui.end_row();
+                }
+
+                if filtered_issuances.is_empty() && !self.issuance_search.is_empty() {
+                    ui.label(RichText::new("Ничего не найдено").font(FontId::proportional(18.0)));
                 }
             });
         });
@@ -807,25 +920,25 @@ impl App {
         } else if code.starts_with("TOOL_") {
             if let Some(tool) = self.db.get_tool_by_qr(code) {
                 self.scanned_tool = Some(tool.clone());
-                let issued = self.db.get_issued_quantity(&tool.id);
-                let available = tool.total_quantity - issued;
-                self.issue_quantity = 1.min(available);
                 self.terminal_message = format!("Инструмент: {}", tool.name);
             } else {
                 self.terminal_error = "Инструмент не найден".to_string();
             }
         } else {
-            self.terminal_error = "Неизвестный QR код".to_string();
+            self.terminal_error = "Неверный формат QR кода".to_string();
         }
     }
 
     fn issue_tool(&mut self) {
-        if let (Some(employee), Some(tool), Some(user)) = (&self.scanned_employee, &self.scanned_tool, &self.current_user) {
+        self.terminal_error.clear();
+        self.terminal_message.clear();
+
+        if let (Some(emp), Some(tool)) = (&self.scanned_employee, &self.scanned_tool) {
             let issuance = Issuance {
                 id: uuid::Uuid::new_v4().to_string(),
                 tool_id: tool.id.clone(),
-                employee_id: employee.id.clone(),
-                user_id: user.id.clone(),
+                employee_id: emp.id.clone(),
+                user_id: self.current_user.as_ref().unwrap().id.clone(),
                 quantity: self.issue_quantity,
                 issued_at: Local::now(),
                 returned_at: None,
@@ -833,7 +946,7 @@ impl App {
 
             match self.db.issue_tool(issuance) {
                 Ok(()) => {
-                    self.terminal_message = format!("Выдано: {} x{}", tool.name, self.issue_quantity);
+                    self.terminal_message = format!("Выдано {} x{}", tool.name, self.issue_quantity);
                     self.scanned_tool = None;
                     self.issue_quantity = 1;
                 }
