@@ -29,6 +29,21 @@ enum AdminTab {
     Issuances,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum EmployeeSort {
+    Name,
+    Position,
+    Department,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum ToolSort {
+    Name,
+    Inventory,
+    Category,
+    Quantity,
+}
+
 pub struct App {
     db: Database,
     current_user: Option<User>,
@@ -72,6 +87,12 @@ pub struct App {
 
     // Category form
     new_category_name: String,
+
+    // Sorting
+    employee_sort: EmployeeSort,
+    employee_sort_asc: bool,
+    tool_sort: ToolSort,
+    tool_sort_asc: bool,
 
     // Terminal
     scan_input: String,
@@ -117,6 +138,10 @@ impl App {
             delete_category_id: None,
             delete_category_name: String::new(),
             new_category_name: String::new(),
+            employee_sort: EmployeeSort::Name,
+            employee_sort_asc: true,
+            tool_sort: ToolSort::Name,
+            tool_sort_asc: true,
             scan_input: String::new(),
             scanned_employee: None,
             scanned_tool: None,
@@ -432,9 +457,49 @@ impl App {
 
         ui.add_space(20.0);
 
+        // Sorting controls
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Сортировка:").font(FontId::proportional(16.0)));
+            let name_label = if self.employee_sort == EmployeeSort::Name { 
+                if self.employee_sort_asc { "ФИО ▲" } else { "ФИО ▼" }
+            } else { "ФИО" };
+            if ui.small_button(name_label).clicked() {
+                if self.employee_sort == EmployeeSort::Name {
+                    self.employee_sort_asc = !self.employee_sort_asc;
+                } else {
+                    self.employee_sort = EmployeeSort::Name;
+                    self.employee_sort_asc = true;
+                }
+            }
+            let pos_label = if self.employee_sort == EmployeeSort::Position { 
+                if self.employee_sort_asc { "Должность ▲" } else { "Должность ▼" }
+            } else { "Должность" };
+            if ui.small_button(pos_label).clicked() {
+                if self.employee_sort == EmployeeSort::Position {
+                    self.employee_sort_asc = !self.employee_sort_asc;
+                } else {
+                    self.employee_sort = EmployeeSort::Position;
+                    self.employee_sort_asc = true;
+                }
+            }
+            let dept_label = if self.employee_sort == EmployeeSort::Department { 
+                if self.employee_sort_asc { "Отдел ▲" } else { "Отдел ▼" }
+            } else { "Отдел" };
+            if ui.small_button(dept_label).clicked() {
+                if self.employee_sort == EmployeeSort::Department {
+                    self.employee_sort_asc = !self.employee_sort_asc;
+                } else {
+                    self.employee_sort = EmployeeSort::Department;
+                    self.employee_sort_asc = true;
+                }
+            }
+        });
+
+        ui.add_space(10.0);
+
         // Filter employees by search - clone data to avoid borrow issues
         let search_lower = self.employee_search.to_lowercase();
-        let filtered_employees: Vec<Employee> = self.db.employees.iter()
+        let mut filtered_employees: Vec<Employee> = self.db.employees.iter()
             .filter(|e| {
                 if search_lower.is_empty() {
                     true
@@ -447,6 +512,16 @@ impl App {
             })
             .cloned()
             .collect();
+
+        // Sort filtered employees
+        filtered_employees.sort_by(|a, b| {
+            let cmp = match self.employee_sort {
+                EmployeeSort::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                EmployeeSort::Position => a.position.to_lowercase().cmp(&b.position.to_lowercase()),
+                EmployeeSort::Department => a.department.to_lowercase().cmp(&b.department.to_lowercase()),
+            };
+            if self.employee_sort_asc { cmp } else { cmp.reverse() }
+        });
 
         let is_search_empty = self.employee_search.is_empty();
         let is_filtered_empty = filtered_employees.is_empty();
@@ -679,13 +754,53 @@ impl App {
 
         ui.add_space(20.0);
 
+        // Sorting controls
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Сортировка:").font(FontId::proportional(16.0)));
+            let name_label = if self.tool_sort == ToolSort::Name { 
+                if self.tool_sort_asc { "Название ▲" } else { "Название ▼" }
+            } else { "Название" };
+            if ui.small_button(name_label).clicked() {
+                if self.tool_sort == ToolSort::Name {
+                    self.tool_sort_asc = !self.tool_sort_asc;
+                } else {
+                    self.tool_sort = ToolSort::Name;
+                    self.tool_sort_asc = true;
+                }
+            }
+            let inv_label = if self.tool_sort == ToolSort::Inventory { 
+                if self.tool_sort_asc { "Инв. номер ▲" } else { "Инв. номер ▼" }
+            } else { "Инв. номер" };
+            if ui.small_button(inv_label).clicked() {
+                if self.tool_sort == ToolSort::Inventory {
+                    self.tool_sort_asc = !self.tool_sort_asc;
+                } else {
+                    self.tool_sort = ToolSort::Inventory;
+                    self.tool_sort_asc = true;
+                }
+            }
+            let qty_label = if self.tool_sort == ToolSort::Quantity { 
+                if self.tool_sort_asc { "Количество ▲" } else { "Количество ▼" }
+            } else { "Количество" };
+            if ui.small_button(qty_label).clicked() {
+                if self.tool_sort == ToolSort::Quantity {
+                    self.tool_sort_asc = !self.tool_sort_asc;
+                } else {
+                    self.tool_sort = ToolSort::Quantity;
+                    self.tool_sort_asc = true;
+                }
+            }
+        });
+
+        ui.add_space(10.0);
+
         // Filter tools by search - clone to avoid borrow issues
         let search_lower = self.tool_search.to_lowercase();
         let categories: std::collections::HashMap<String, String> = self.db.categories.iter()
             .map(|c| (c.id.clone(), c.name.clone()))
             .collect();
         
-        let filtered_tools: Vec<Tool> = self.db.tools.iter()
+        let mut filtered_tools: Vec<Tool> = self.db.tools.iter()
             .filter(|t| {
                 if search_lower.is_empty() {
                     true
@@ -699,6 +814,22 @@ impl App {
             })
             .cloned()
             .collect();
+
+        // Sort filtered tools
+        let categories_ref = &categories;
+        filtered_tools.sort_by(|a, b| {
+            let cmp = match self.tool_sort {
+                ToolSort::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                ToolSort::Inventory => a.inventory_number.to_lowercase().cmp(&b.inventory_number.to_lowercase()),
+                ToolSort::Category => {
+                    let cat_a = categories_ref.get(&a.category_id).cloned().unwrap_or_default();
+                    let cat_b = categories_ref.get(&b.category_id).cloned().unwrap_or_default();
+                    cat_a.to_lowercase().cmp(&cat_b.to_lowercase())
+                }
+                ToolSort::Quantity => a.total_quantity.cmp(&b.total_quantity),
+            };
+            if self.tool_sort_asc { cmp } else { cmp.reverse() }
+        });
 
         let is_search_empty = self.tool_search.is_empty();
         let is_filtered_empty = filtered_tools.is_empty();
