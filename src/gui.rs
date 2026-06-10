@@ -305,7 +305,7 @@ impl App {
         ui.heading(RichText::new("Последние выдачи").font(FontId::proportional(22.0)));
         ui.add_space(10.0);
 
-        egui::ScrollArea::horizontal().show(ui, |ui| {
+        egui::ScrollArea::both().max_height(300.0).show(ui, |ui| {
             let active: Vec<_> = self.db.issuances.iter()
                 .filter(|i| i.returned_at.is_none())
                 .collect();
@@ -451,8 +451,8 @@ impl App {
         let is_search_empty = self.employee_search.is_empty();
         let is_filtered_empty = filtered_employees.is_empty();
 
-        // Employees table with horizontal scroll
-        egui::ScrollArea::horizontal().show(ui, |ui| {
+        // Employees table with both horizontal and vertical scroll
+        egui::ScrollArea::both().max_height(400.0).show(ui, |ui| {
             egui::Grid::new("employees_table")
                 .min_col_width(150.0)
                 .spacing([15.0, 10.0])
@@ -703,8 +703,8 @@ impl App {
         let is_search_empty = self.tool_search.is_empty();
         let is_filtered_empty = filtered_tools.is_empty();
 
-        // Tools table with horizontal scroll
-        egui::ScrollArea::horizontal().show(ui, |ui| {
+        // Tools table with both horizontal and vertical scroll
+        egui::ScrollArea::both().max_height(400.0).show(ui, |ui| {
             egui::Grid::new("tools_table")
                 .min_col_width(100.0)
                 .spacing([12.0, 10.0])
@@ -960,8 +960,8 @@ impl App {
         let is_search_empty = self.issuance_search.is_empty();
         let is_filtered_empty = filtered_issuances.is_empty();
 
-        // Issuances table with horizontal scroll
-        egui::ScrollArea::horizontal().show(ui, |ui| {
+        // Issuances table with both horizontal and vertical scroll
+        egui::ScrollArea::both().max_height(500.0).show(ui, |ui| {
             egui::Grid::new("issuances_table")
                 .min_col_width(120.0)
                 .spacing([15.0, 10.0])
